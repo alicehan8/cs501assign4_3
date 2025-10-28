@@ -5,9 +5,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,7 +23,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.assign4_3.ui.theme.Assign4_3Theme
@@ -70,6 +81,10 @@ class TemperatureViewModel : ViewModel(){
         }
         _tempStateFlow.value = Temperatures(currentReadings)
     }
+
+    fun toggleGenerate(){
+        generate = !generate
+    }
 }
 
 @Composable
@@ -83,13 +98,28 @@ fun TempScreen(viewModel: TemperatureViewModel, modifier: Modifier = Modifier){
     }
 
     val tempState by viewModel.tempStateFlow.collectAsStateWithLifecycle()
-
-    LazyColumn {
-        items(tempState.readings.size) { index ->
-            Text(text = "Temperature: ${tempState.readings[index].temperature} at ${tempState.readings[index].time}")
+    Column(modifier = modifier.fillMaxHeight()) {
+        Text("Temperatures", fontSize = 30.sp, modifier = Modifier.padding(10.dp))
+        LazyColumn(modifier = Modifier.height(400.dp)) {
+            items(tempState.readings.size) { index ->
+                Text(text = "Temperature: ${tempState.readings[index].temperature} at ${tempState.readings[index].time}")
+            }
         }
+        Button(onClick = { viewModel.toggleGenerate() }) {
+            Text(if (viewModel.generate) "Pause" else "Resume")
+        }
+        Text("Stats", fontSize = 30.sp, modifier = Modifier.padding(10.dp))
+        if (tempState.readings.isNotEmpty()) {
+            Text("Current Temperature: ${tempState.readings.last().temperature}")
+            Text("Average Temperature: ${tempState.readings.map { it.temperature }.average()}")
+            Text("Max Temperature: ${tempState.readings.maxOfOrNull { it.temperature }}")
+            Text("Min Temperature: ${tempState.readings.minOfOrNull { it.temperature }}")
+        } else{
+            Text("Getting temperature readings...")
+        }
+        Text("Chart", fontSize = 30.sp, modifier = Modifier.padding(10.dp))
+        Chart(readings = tempState)
     }
-
 }
 
 suspend fun getReading(viewModel: TemperatureViewModel){
@@ -105,6 +135,44 @@ suspend fun getReading(viewModel: TemperatureViewModel){
         viewModel.addTempReading(TempReading(reading, formattedTimestamp))
     }
 }
+
+@Composable
+fun Chart(readings: Temperatures, modifier: Modifier = Modifier){
+    if(readings.readings.isEmpty()){
+        return
+    }
+
+    Canvas(modifier = modifier
+        .fillMaxWidth()
+        .height(200.dp)
+        .padding(16.dp)
+    ) {
+        val minTemp = readings.readings.minOfOrNull { it.temperature } ?: 0f
+        val maxTemp = readings.readings.maxOfOrNull { it.temperature } ?: 100f
+
+        val path = Path()
+
+        val xSpacing = size.width / (readings.readings.size - 1)
+
+        readings.readings.forEachIndexed { index, reading ->
+            val x = index * xSpacing
+
+            val y = size.height - ((reading.temperature - minTemp) / (maxTemp - minTemp).coerceAtLeast(1f)) * size.height
+
+            if (index == 0) {
+                path.moveTo(x, y.toFloat())
+            } else {
+                path.lineTo(x, y.toFloat())
+            }
+        }
+
+        drawPath(
+            path = path,
+            color = Color.Blue
+        )
+    }
+}
+
 
 
 @Composable
